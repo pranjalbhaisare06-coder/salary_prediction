@@ -12,13 +12,13 @@ st.write("Available files:", os.listdir())
 # -------------------------------
 # Load Model Safely
 # -------------------------------
-MODEL_PATH = "random_forest_regressor_model.pkl"
+MODEL_PATH = "best_model.pkl"
 
-if not os.path.exists(MODEL_PATH):
-    st.error(f"Model file '{MODEL_PATH}' not found.")
+if not os.path.exists('best_model.pkl'):
+    st.error(f"Model file '{best_model.pkl}' not found.")
     st.stop()
 
-model = joblib.load(MODEL_PATH)
+model = joblib.load(best_model.pkl2)
 
 # -------------------------------
 # Load Dataset Safely
