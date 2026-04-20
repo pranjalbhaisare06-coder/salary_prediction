@@ -1,48 +1,64 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
+import os
 from sklearn.preprocessing import LabelEncoder
 
-# Load the trained model
-model = joblib.load('random_forest_regressor_model.pkl')
+# -------------------------------
+# Debug: Show files in directory
+# -------------------------------
+st.write("Available files:", os.listdir())
 
-# Load the original dataset to fit LabelEncoders
-try:
-    original_df = pd.read_csv('Salary_Data (1).csv')
-except FileNotFoundError:
-    st.error("Error: 'Salary_Data (1).csv' not found. Please ensure it's in the same directory as the app.")
+# -------------------------------
+# Load Model Safely
+# -------------------------------
+MODEL_PATH = "random_forest_regressor_model.pkl"
+
+if not os.path.exists(MODEL_PATH):
+    st.error(f"Model file '{MODEL_PATH}' not found.")
     st.stop()
 
-# Initialize and fit LabelEncoders for categorical columns
+model = joblib.load(MODEL_PATH)
+
+# -------------------------------
+# Load Dataset Safely
+# -------------------------------
+DATA_PATH = "salary_data.csv"
+
+if not os.path.exists(DATA_PATH):
+    st.error(f"Dataset file '{DATA_PATH}' not found.")
+    st.stop()
+
+original_df = pd.read_csv(DATA_PATH)
+
+# -------------------------------
+# Label Encoding
+# -------------------------------
 label_encoders = {}
+
 for col in ['Gender', 'Education Level', 'Job Title']:
     le = LabelEncoder()
-    # Fit on unique values to handle potential NaN and new values gracefully
-    le.fit(original_df[col].astype(str).unique())
+    le.fit(original_df[col].astype(str))
     label_encoders[col] = le
 
-# Streamlit App Title
-st.title('Salary Prediction App')
-st.write('Enter employee details to predict their salary.')
+# -------------------------------
+# UI
+# -------------------------------
+st.title("💰 Salary Prediction App")
 
-# Input fields for features
-age = st.slider('Age', 18, 70, 30)
+age = st.slider("Age", 18, 70, 30)
 
-gender_options = original_df['Gender'].astype(str).unique()
-gender = st.selectbox('Gender', sorted(gender_options))
+gender = st.selectbox("Gender", sorted(original_df['Gender'].astype(str).unique()))
+education_level = st.selectbox("Education Level", sorted(original_df['Education Level'].astype(str).unique()))
+job_title = st.selectbox("Job Title", sorted(original_df['Job Title'].astype(str).unique()))
 
-education_options = original_df['Education Level'].astype(str).unique()
-education_level = st.selectbox('Education Level', sorted(education_options))
+years_of_experience = st.slider("Years of Experience", 0.0, 40.0, 5.0)
 
-job_title_options = original_df['Job Title'].astype(str).unique()
-job_title = st.selectbox('Job Title', sorted(job_title_options))
+# -------------------------------
+# Prediction
+# -------------------------------
+if st.button("Predict Salary"):
 
-years_of_experience = st.slider('Years of Experience', 0.0, 40.0, 5.0)
-
-# Predict button
-if st.button('Predict Salary'):
-    # Create a DataFrame from input values
     input_data = pd.DataFrame([{
         'Age': age,
         'Gender': gender,
@@ -51,24 +67,17 @@ if st.button('Predict Salary'):
         'Years of Experience': years_of_experience
     }])
 
-    # Preprocess input data
+    # Encode safely
     for col, le in label_encoders.items():
-        # Use .transform, but handle potential unseen labels by converting to str and using .map
-        # If a label is unseen, it will result in NaN, which might need further handling depending on model
-        # For simplicity, here we'll assume new labels are present in the fitted categories.
-        # A more robust solution might involve adding an 'unknown' category during fit.
-        input_data[col] = input_data[col].astype(str).map(lambda s: le.transform([s])[0] if s in le.classes_ else -1)
-        # If -1 is not a valid encoding, this approach needs refinement.
-        # For this example, let's assume all selected values will be known.
+        input_data[col] = input_data[col].apply(
+            lambda x: le.transform([x])[0] if x in le.classes_ else 0
+        )
 
-    # Ensure all columns are present and in the correct order as during training
-    # Assuming the training columns were: 'Age', 'Gender', 'Education Level', 'Job Title', 'Years of Experience'
-    # The LabelEncoder changes the column to numerical, so the `input_data` will have numerical values after transformation.
-    # The order of columns matters for prediction, so let's enforce it.
-    expected_columns = ['Age', 'Gender', 'Education Level', 'Job Title', 'Years of Experience']
-    input_data = input_data[expected_columns]
+    # Ensure column order
+    input_data = input_data[['Age', 'Gender', 'Education Level', 'Job Title', 'Years of Experience']]
 
-    # Make prediction
-    prediction = model.predict(input_data)
+    # Predict
+    with st.spinner("Predicting..."):
+        prediction = model.predict(input_data)
 
-    st.success(f'Predicted Salary: ${prediction[0]:,.2f}')
+    st.success(f"💰 Predicted Salary: ₹ {prediction[0]:,.0f}")
